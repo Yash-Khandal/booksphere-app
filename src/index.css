@@ -11,3 +11,101 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+body {
+  margin: 0;
+  font-family: 'Inter', 'Roboto', 'Arial', sans-serif;
+  background: linear-gradient(120deg, #a8edea 0%, #fed6e3 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Animated blobs for background */
+.animated-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.5;
+  z-index: 0;
+}
+
+.blob1 {
+  width: 400px;
+  height: 400px;
+  top: -120px;
+  left: -120px;
+  background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+  animation: blob1 12s infinite alternate ease-in-out;
+}
+
+.blob2 {
+  width: 300px;
+  height: 300px;
+  bottom: -80px;
+  right: -80px;
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  animation: blob2 10s infinite alternate-reverse ease-in-out;
+}
+
+@keyframes blob1 {
+  0% { transform: scale(1) translate(0,0); }
+  50% { transform: scale(1.15) translate(60px, 40px); }
+  100% { transform: scale(1) translate(0,0); }
+}
+@keyframes blob2 {
+  0% { transform: scale(1) translate(0,0); }
+  50% { transform: scale(1.1) translate(-40px, -30px); }
+  100% { transform: scale(1) translate(0,0); }
+}
+.browse-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(120deg, #a8edea 0%, #fed6e3 100%);
+  animation: gradientMove 14s ease-in-out infinite alternate;
+}
+
+@keyframes gradientMove {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
+/* Animated gradient waves for Browse page */
+.wave-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
+}
+.wave {
+  position: absolute;
+  left: 0;
+  width: 200%;
+  height: 300px;
+  opacity: 0.5;
+  animation: waveMove 12s linear infinite;
+}
+.wave1 {
+  top: 0;
+  background: radial-gradient(circle at 20% 40%, #fbc2eb 60%, transparent 100%);
+  animation-delay: 0s;
+}
+.wave2 {
+  top: 100px;
+  background: radial-gradient(circle at 80% 60%, #a6c1ee 60%, transparent 100%);
+  animation-delay: 4s;
+}
+.wave3 {
+  top: 200px;
+  background: radial-gradient(circle at 50% 80%, #f093fb 60%, transparent 100%);
+  animation-delay: 8s;
+}
+@keyframes waveMove {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+ @keyframes gradientBG {
+   0% { filter: hue-rotate(0deg); }
+   100% { filter: hue-rotate(30deg); }
+}
