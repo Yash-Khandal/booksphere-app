@@ -6,7 +6,8 @@ import {
   Box, Container, Grid, Card, CardContent, CardMedia, Typography,
   TextField, Select, MenuItem, FormControl, InputLabel, Chip,
   InputAdornment, Stack, Pagination, Dialog, DialogContent, DialogTitle, DialogActions,
-  IconButton, Tooltip, Alert, LinearProgress, Slider, Button, Rating, CircularProgress
+  IconButton, Tooltip, Alert, LinearProgress, Slider, Button, Rating, CircularProgress,
+  ToggleButton, ToggleButtonGroup, Divider, List, ListItem, ListItemText, ListItemSecondaryAction
 } from '@mui/material';
 import {
   Search as SearchIcon, 
@@ -26,7 +27,12 @@ import {
   Star as StarIcon,
   Delete as DeleteIcon,
   Favorite,
-  FavoriteBorder
+  FavoriteBorder,
+  Highlight as HighlightIcon,
+  FormatPaint as FormatPaintIcon,
+  ColorLens as ColorLensIcon,
+  Note as NoteIcon,
+  BookmarkBorder as BookmarkIcon
 } from '@mui/icons-material';
 import Loader from '../layout/Loader';
 
@@ -70,9 +76,28 @@ export default function Browse() {
   // Like system states
   const [likedBooks, setLikedBooks] = useState(new Set());
 
+  // Highlighting system states
+  const [highlightMode, setHighlightMode] = useState(false);
+  const [highlightColor, setHighlightColor] = useState('#ffff00');
+  const [highlights, setHighlights] = useState([]);
+  const [selectedHighlight, setSelectedHighlight] = useState(null);
+  const [highlightNote, setHighlightNote] = useState('');
+  const [showHighlightDialog, setShowHighlightDialog] = useState(false);
+  const [showHighlightsList, setShowHighlightsList] = useState(false);
+  const [highlightColors] = useState([
+    { name: 'Yellow', value: '#ffff00' },
+    { name: 'Green', value: '#90EE90' },
+    { name: 'Blue', value: '#87CEEB' },
+    { name: 'Pink', value: '#FFB6C1' },
+    { name: 'Orange', value: '#FFA500' },
+    { name: 'Purple', value: '#DDA0DD' }
+  ]);
+
   // Use refs to prevent multiple subscriptions
   const subscriptionRef = useRef(null);
   const isSubscribedRef = useRef(false);
+  const textLayerRef = useRef(null);
+  const selectionRef = useRef(null);
 
   const itemsPerPage = 12;
 
@@ -101,6 +126,13 @@ export default function Browse() {
     // Cleanup on unmount or user change
     return cleanup;
   }, [currentUser?.id]); // Only depend on currentUser.id
+
+  // Load highlights when book is selected
+  useEffect(() => {
+    if (selectedBook && currentUser) {
+      loadHighlights();
+    }
+  }, [selectedBook, currentUser]);
 
   const fetchLikedBooks = async () => {
     if (!currentUser?.id) return;
@@ -167,6 +199,116 @@ export default function Browse() {
       subscriptionRef.current = null;
     }
     isSubscribedRef.current = false;
+  };
+
+  // Highlighting functions
+  const loadHighlights = async () => {
+    if (!currentUser || !selectedBook) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('book_highlights')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('book_id', selectedBook.id)
+        .eq('page_number', pageNumber);
+      
+      if (error) throw error;
+      setHighlights(data || []);
+    } catch (error) {
+      console.error('Error loading highlights:', error);
+    }
+  };
+
+  const saveHighlight = async (highlightData) => {
+    if (!currentUser || !selectedBook) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('book_highlights')
+        .insert({
+          user_id: currentUser.id,
+          book_id: selectedBook.id,
+          page_number: pageNumber,
+          text: highlightData.text,
+          color: highlightData.color,
+          note: highlightData.note || null,
+          position: highlightData.position
+        })
+        .select();
+      
+      if (error) throw error;
+      setHighlights(prev => [...prev, data[0]]);
+      return data[0];
+    } catch (error) {
+      console.error('Error saving highlight:', error);
+      setError('Failed to save highlight');
+    }
+  };
+
+  const deleteHighlight = async (highlightId) => {
+    try {
+      const { error } = await supabase
+        .from('book_highlights')
+        .delete()
+        .eq('id', highlightId)
+        .eq('user_id', currentUser.id);
+      
+      if (error) throw error;
+      setHighlights(prev => prev.filter(h => h.id !== highlightId));
+    } catch (error) {
+      console.error('Error deleting highlight:', error);
+      setError('Failed to delete highlight');
+    }
+  };
+
+  const handleTextSelection = () => {
+    if (!highlightMode) return;
+    
+    const selection = window.getSelection();
+    if (selection.rangeCount > 0 && selection.toString().trim()) {
+      const range = selection.getRangeAt(0);
+      const selectedText = selection.toString().trim();
+      
+      // Get position relative to page
+      const rect = range.getBoundingClientRect();
+      const pageElement = document.querySelector('.react-pdf__Page');
+      const pageRect = pageElement ? pageElement.getBoundingClientRect() : { top: 0, left: 0 };
+      
+      const position = {
+        top: rect.top - pageRect.top,
+        left: rect.left - pageRect.left,
+        width: rect.width,
+        height: rect.height
+      };
+      
+      // Create highlight
+      const highlightData = {
+        text: selectedText,
+        color: highlightColor,
+        position: position
+      };
+      
+      setSelectedHighlight(highlightData);
+      setShowHighlightDialog(true);
+      
+      // Clear selection
+      selection.removeAllRanges();
+    }
+  };
+
+  const confirmHighlight = async () => {
+    if (selectedHighlight) {
+      const highlightWithNote = {
+        ...selectedHighlight,
+        note: highlightNote
+      };
+      
+      await saveHighlight(highlightWithNote);
+      setShowHighlightDialog(false);
+      setSelectedHighlight(null);
+      setHighlightNote('');
+    }
   };
 
   const toggleLike = async (book) => {
@@ -432,6 +574,8 @@ export default function Browse() {
     setPageNumber(1);
     setPdfScale(1);
     setError('');
+    setHighlightMode(false);
+    setHighlights([]);
   };
 
   const closePdfViewer = () => {
@@ -440,6 +584,9 @@ export default function Browse() {
     setNumPages(null);
     setPageNumber(1);
     setPdfScale(1);
+    setHighlightMode(false);
+    setHighlights([]);
+    setShowHighlightsList(false);
     stopReading();
   };
 
@@ -611,7 +758,7 @@ export default function Browse() {
                     image={getBookCover(book)}
                     alt={book.title}
                     sx={{ 
-                      objectFit: 'contain', // FIX: show whole image
+                      objectFit: 'cover', // FIXED: Remove gaps and fill container
                       background: '#fff',
                       borderTopLeftRadius: 20, 
                       borderTopRightRadius: 20 
@@ -698,7 +845,7 @@ export default function Browse() {
           </Box>
         )}
 
-        {/* PDF Viewer Dialog */}
+        {/* PDF Viewer Dialog with Enhanced Highlighting Tools */}
         <Dialog 
           open={pdfViewerOpen} 
           onClose={closePdfViewer}
@@ -718,7 +865,70 @@ export default function Browse() {
               {selectedBook?.title}
             </Typography>
             
+            {/* Enhanced Toolbar with Highlighting Tools */}
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Highlighting Tools */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 2, p: 0.5 }}>
+                <Tooltip title={highlightMode ? "Exit Highlight Mode" : "Enter Highlight Mode"}>
+                  <ToggleButton
+                    value="highlight"
+                    selected={highlightMode}
+                    onChange={() => setHighlightMode(!highlightMode)}
+                    size="small"
+                    sx={{ color: 'white', border: '1px solid white' }}
+                  >
+                    <HighlightIcon />
+                  </ToggleButton>
+                </Tooltip>
+                
+                {highlightMode && (
+                  <>
+                    <Tooltip title="Choose Highlight Color">
+                      <IconButton
+                        size="small"
+                        sx={{ color: 'white' }}
+                      >
+                        <ColorLensIcon />
+                      </IconButton>
+                    </Tooltip>
+                    
+                    <Select
+                      size="small"
+                      value={highlightColor}
+                      onChange={(e) => setHighlightColor(e.target.value)}
+                      sx={{ 
+                        color: 'white',
+                        minWidth: 100,
+                        '.MuiOutlinedInput-notchedOutline': { borderColor: 'white' },
+                        '.MuiSvgIcon-root': { color: 'white' }
+                      }}
+                    >
+                      {highlightColors.map((color) => (
+                        <MenuItem key={color.value} value={color.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box sx={{ width: 16, height: 16, bgcolor: color.value, borderRadius: 1 }} />
+                            {color.name}
+                          </Box>
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </>
+                )}
+                
+                <Tooltip title="Show Highlights">
+                  <IconButton
+                    onClick={() => setShowHighlightsList(!showHighlightsList)}
+                    size="small"
+                    sx={{ color: 'white' }}
+                  >
+                    <BookmarkIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+              
+              <Divider orientation="vertical" flexItem sx={{ bgcolor: 'white' }} />
+              
+              {/* Reading Mode Selection */}
               <Select
                 size="small"
                 value={readingMode}
@@ -733,6 +943,8 @@ export default function Browse() {
                 <MenuItem value="currentPage">Current Page</MenuItem>
                 <MenuItem value="fullDocument">Full Document</MenuItem>
               </Select>
+              
+              {/* Speech Controls */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SpeedIcon fontSize="small" />
                 <Slider
@@ -757,6 +969,8 @@ export default function Browse() {
                   sx={{ width: 60, color: 'white' }}
                 />
               </Box>
+              
+              {/* Zoom Controls */}
               <Tooltip title="Zoom Out">
                 <IconButton onClick={zoomOut} sx={{ color: 'white' }}>
                   <ZoomOutIcon />
@@ -770,6 +984,8 @@ export default function Browse() {
                   <ZoomInIcon />
                 </IconButton>
               </Tooltip>
+              
+              {/* Page Navigation */}
               {numPages && (
                 <>
                   <IconButton 
@@ -791,6 +1007,8 @@ export default function Browse() {
                   </IconButton>
                 </>
               )}
+              
+              {/* Reading Controls */}
               <Tooltip title={extractingText ? "Extracting text..." : "Read PDF Content"}>
                 <IconButton 
                   onClick={startReadingPdfContent}
@@ -824,44 +1042,181 @@ export default function Browse() {
             </Box>
           </Box>
 
-          <DialogContent sx={{ 
-            p: 0, 
-            overflow: 'auto', 
-            textAlign: 'center',
-            bgcolor: '#f5f5f5',
-            height: 'calc(100vh - 80px)'
-          }}>
-            {selectedBook?.file_url && (
-              <React.Suspense fallback={
-                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                  <Typography>Loading PDF...</Typography>
-                </Box>
-              }>
-                <Document
-                  file={selectedBook.file_url}
-                  onLoadSuccess={onDocumentLoadSuccess}
-                  onLoadError={onDocumentLoadError}
-                  loading={
+          <Box sx={{ display: 'flex', height: 'calc(100vh - 80px)' }}>
+            {/* Highlights Sidebar */}
+            {showHighlightsList && (
+              <Box sx={{ 
+                width: 300, 
+                bgcolor: '#f5f5f5', 
+                borderRight: '1px solid #ddd',
+                overflowY: 'auto',
+                p: 2
+              }}>
+                <Typography variant="h6" gutterBottom>
+                  Highlights
+                </Typography>
+                <List dense>
+                  {highlights.map((highlight) => (
+                    <ListItem key={highlight.id} sx={{ bgcolor: 'white', mb: 1, borderRadius: 1 }}>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Box 
+                              sx={{ 
+                                width: 12, 
+                                height: 12, 
+                                bgcolor: highlight.color, 
+                                borderRadius: 1 
+                              }} 
+                            />
+                            <Typography variant="body2" noWrap>
+                              {highlight.text.substring(0, 50)}...
+                            </Typography>
+                          </Box>
+                        }
+                        secondary={highlight.note}
+                      />
+                      <ListItemSecondaryAction>
+                        <IconButton 
+                          size="small" 
+                          onClick={() => deleteHighlight(highlight.id)}
+                          color="error"
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </ListItemSecondaryAction>
+                    </ListItem>
+                  ))}
+                  {highlights.length === 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
+                      No highlights on this page
+                    </Typography>
+                  )}
+                </List>
+              </Box>
+            )}
+
+            {/* PDF Content */}
+            <DialogContent sx={{ 
+              p: 0, 
+              overflow: 'auto', 
+              textAlign: 'center',
+              bgcolor: '#f5f5f5',
+              flex: 1,
+              position: 'relative'
+            }}>
+              {selectedBook?.file_url && (
+                <Box 
+                  onMouseUp={handleTextSelection}
+                  sx={{ 
+                    cursor: highlightMode ? 'crosshair' : 'default',
+                    position: 'relative'
+                  }}
+                >
+                  <React.Suspense fallback={
                     <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                       <Typography>Loading PDF...</Typography>
                     </Box>
-                  }
-                  error={
-                    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                      <Typography color="error">Failed to load PDF</Typography>
-                    </Box>
-                  }
-                >
-                  <Page 
-                    pageNumber={pageNumber} 
-                    width={getPdfWidth()}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                </Document>
-              </React.Suspense>
-            )}
+                  }>
+                    <Document
+                      file={selectedBook.file_url}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={onDocumentLoadError}
+                      loading={
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                          <Typography>Loading PDF...</Typography>
+                        </Box>
+                      }
+                      error={
+                        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                          <Typography color="error">Failed to load PDF</Typography>
+                        </Box>
+                      }
+                    >
+                      <Page 
+                        pageNumber={pageNumber} 
+                        width={getPdfWidth()}
+                        renderTextLayer={true}
+                        renderAnnotationLayer={false}
+                        className="pdf-page"
+                      />
+                    </Document>
+                  </React.Suspense>
+                  
+                  {/* Render highlights overlay */}
+                  {highlights.map((highlight) => (
+                    <Box
+                      key={highlight.id}
+                      sx={{
+                        position: 'absolute',
+                        top: highlight.position.top,
+                        left: highlight.position.left,
+                        width: highlight.position.width,
+                        height: highlight.position.height,
+                        backgroundColor: highlight.color,
+                        opacity: 0.3,
+                        pointerEvents: 'none',
+                        zIndex: 1
+                      }}
+                    />
+                  ))}
+                </Box>
+              )}
+            </DialogContent>
+          </Box>
+        </Dialog>
+
+        {/* Highlight Confirmation Dialog */}
+        <Dialog 
+          open={showHighlightDialog} 
+          onClose={() => setShowHighlightDialog(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <HighlightIcon color="primary" />
+              <Typography variant="h6">Add Highlight</Typography>
+            </Box>
+          </DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Selected Text:
+              </Typography>
+              <Box sx={{ 
+                p: 2, 
+                bgcolor: selectedHighlight?.color || highlightColor, 
+                borderRadius: 1,
+                opacity: 0.7
+              }}>
+                <Typography variant="body2">
+                  {selectedHighlight?.text}
+                </Typography>
+              </Box>
+            </Box>
+            <TextField
+              fullWidth
+              label="Add a note (Optional)"
+              multiline
+              rows={3}
+              value={highlightNote}
+              onChange={(e) => setHighlightNote(e.target.value)}
+              placeholder="Add your thoughts about this highlight..."
+            />
           </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowHighlightDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="contained"
+              onClick={confirmHighlight}
+              startIcon={<HighlightIcon />}
+            >
+              Add Highlight
+            </Button>
+          </DialogActions>
         </Dialog>
         
         {/* Rating Dialog */}
