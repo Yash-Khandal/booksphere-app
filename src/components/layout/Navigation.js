@@ -37,9 +37,78 @@ import {
   Book,
   Logout as LogoutIcon,
   Dashboard as DashboardIcon,
-  Menu as MenuIcon,
 } from '@mui/icons-material';
 import NotificationDropdown from './NotificationDropdown';
+
+// Animated Hamburger Component
+const AnimatedHamburger = ({ isOpen, onClick, size = 24, color = 'currentColor' }) => {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        width: size,
+        height: size,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        cursor: 'pointer',
+        position: 'relative',
+        padding: '8px',
+        '&:hover': {
+          opacity: 0.8,
+        },
+      }}
+    >
+      {/* Top Bar */}
+      <Box
+        sx={{
+          width: '20px',
+          height: '2px',
+          backgroundColor: color,
+          borderRadius: '1px',
+          transition: 'all 0.3s ease',
+          transformOrigin: 'center',
+          position: 'absolute',
+          top: isOpen ? '50%' : '30%',
+          transform: isOpen 
+            ? 'translateY(-50%) rotate(45deg)' 
+            : 'translateY(-50%) rotate(0deg)',
+        }}
+      />
+      
+      {/* Middle Bar */}
+      <Box
+        sx={{
+          width: '20px',
+          height: '2px',
+          backgroundColor: color,
+          borderRadius: '1px',
+          transition: 'all 0.3s ease',
+          opacity: isOpen ? 0 : 1,
+          transform: isOpen ? 'scale(0)' : 'scale(1)',
+        }}
+      />
+      
+      {/* Bottom Bar */}
+      <Box
+        sx={{
+          width: '20px',
+          height: '2px',
+          backgroundColor: color,
+          borderRadius: '1px',
+          transition: 'all 0.3s ease',
+          transformOrigin: 'center',
+          position: 'absolute',
+          bottom: isOpen ? '50%' : '30%',
+          transform: isOpen 
+            ? 'translateY(50%) rotate(-45deg)' 
+            : 'translateY(50%) rotate(0deg)',
+        }}
+      />
+    </Box>
+  );
+};
 
 export default function Navigation({ mode, toggleMode }) {
   const [anchorEl, setAnchorEl] = useState(null);
@@ -221,6 +290,11 @@ export default function Navigation({ mode, toggleMode }) {
     setMobileOpen(!mobileOpen);
   };
 
+  // FIXED: Auto-close drawer when navigation item is clicked
+  const handleDrawerItemClick = () => {
+    setMobileOpen(false);
+  };
+
   const navLinks = [
     { label: 'Home', path: '/', icon: <DashboardIcon /> },
     { label: 'Upload', path: '/upload', icon: <CloudUploadIcon /> },
@@ -234,9 +308,8 @@ export default function Navigation({ mode, toggleMode }) {
     <Box
       sx={{
         height: '100%',
-        // Gradient background for mobile navbar
-        background: 'linear-gradient(135deg, #ff6f61 0%, #a100ff 100%)', // Vibrant gradient
-        color: '#fff', // Text color for contrast
+        background: 'linear-gradient(135deg, #ff6f61 0%, #a100ff 100%)',
+        color: '#fff',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -253,6 +326,7 @@ export default function Navigation({ mode, toggleMode }) {
               component={Link}
               to={item.path}
               selected={location.pathname === item.path}
+              onClick={handleDrawerItemClick} // FIXED: Auto-close on click
               sx={{
                 py: 1.5,
                 px: 3,
@@ -284,7 +358,14 @@ export default function Navigation({ mode, toggleMode }) {
         <Box sx={{ p: 2, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
           <List>
             <ListItem disablePadding>
-              <ListItemButton component={Link} to="/profile" onClick={handleClose}>
+              <ListItemButton 
+                component={Link} 
+                to="/profile" 
+                onClick={() => {
+                  handleClose();
+                  handleDrawerItemClick(); // FIXED: Auto-close on click
+                }}
+              >
                 <ListItemIcon sx={{ color: 'rgba(255, 255, 255, 0.7)' }}><AccountCircle /></ListItemIcon>
                 <ListItemText primary="Profile" sx={{ color: 'rgba(255, 255, 255, 0.7)' }} />
               </ListItemButton>
@@ -316,15 +397,15 @@ export default function Navigation({ mode, toggleMode }) {
           }}
         >
           <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { md: 'none' } }}
-            >
-              <MenuIcon />
-            </IconButton>
+            {/* FIXED: Replaced MenuIcon with AnimatedHamburger */}
+            <Box sx={{ mr: 2, display: { md: 'none' } }}>
+              <AnimatedHamburger
+                isOpen={mobileOpen}
+                onClick={handleDrawerToggle}
+                size={24}
+                color={theme.palette.mode === 'dark' ? '#fff' : '#181818'}
+              />
+            </Box>
 
             <Typography
               variant="h6"
@@ -450,7 +531,7 @@ export default function Navigation({ mode, toggleMode }) {
               '& .MuiDrawer-paper': {
                 boxSizing: 'border-box',
                 width: 240,
-                background: 'linear-gradient(135deg, #ff6f61 0%, #a100ff 100%)', // Gradient for mobile navbar
+                background: 'linear-gradient(135deg, #ff6f61 0%, #a100ff 100%)',
                 color: '#fff',
               },
             }}
